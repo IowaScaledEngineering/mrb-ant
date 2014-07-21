@@ -1,0 +1,4 @@
+schematics mrb-ias.sch
+output-name ../pcb/mrb-ias
+skip-m4
+elements-dir ../../../footprints
