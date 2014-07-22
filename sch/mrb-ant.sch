@@ -493,21 +493,6 @@ refdes=H4
 T 71000 42000 5 10 0 0 0 0 1
 footprint=STANDOFF_HEX_n4
 }
-C 61400 45200 1 90 0 darlington_NPN-1.sym
-{
-T 60300 46600 5 10 0 0 90 0 1
-device=darlington, NPN
-T 60700 46600 5 10 0 0 90 0 1
-footprint=TO220
-T 59800 46370 5 10 1 1 0 0 1
-refdes=Q1
-T 59600 46700 5 10 1 1 0 0 1
-comment=LARGE heatsink needed!
-T 61000 46400 5 10 1 1 0 0 1
-device=2N6045G
-T 61400 45200 5 10 0 0 0 0 1
-footprint=TO220
-}
 C 58800 43400 1 0 0 lm358-1.sym
 {
 T 59475 44000 5 10 0 0 0 0 1
@@ -897,4 +882,13 @@ T 72000 42600 5 10 1 1 0 4 1
 refdes=HS1
 T 71800 42000 5 10 0 0 0 0 1
 footprint=aavid-heatsink-530002B02500G
+}
+C 61400 45200 1 90 0 2N6045G-1.sym
+{
+T 60900 46400 5 10 1 1 0 0 1
+device=2N6045G
+T 60700 46600 5 10 0 0 90 0 1
+footprint=TO220
+T 59700 46370 5 10 1 1 0 0 1
+refdes=Q1
 }
