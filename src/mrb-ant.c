@@ -59,10 +59,14 @@ volatile uint8_t ticks;
 volatile uint16_t decisecs=0;
 volatile uint16_t update_decisecs=10;
 
-uint8_t basePwm = 0;
-volatile uint8_t pulseCyclesRemaining = 0;
-uint8_t pulseAmplitude = 0;
-uint8_t pulseWidth = 0;
+uint8_t basePwm1 = 0;
+uint8_t basePwm2 = 0;
+volatile uint8_t pulseCyclesRemaining1 = 0;
+volatile uint8_t pulseCyclesRemaining2 = 0;
+uint8_t pulseAmplitude1 = 0;
+uint8_t pulseAmplitude2 = 0;
+uint8_t pulseWidth1 = 0;
+uint8_t pulseWidth2 = 0;
 
 void initialize100HzTimer(void)
 {
@@ -79,12 +83,11 @@ ISR(TIMER1_OVF_vect)
 {
 	TCNT1 += 0xF3CB;
 	
-	if (pulseAmplitude && pulseWidth)
-	{
-		pulseCyclesRemaining = pulseWidth;
-		OCR0A = pulseAmplitude;		
-		TIMSK0 |= _BV(TOIE0);
-	}
+	if (pulseAmplitude1 && pulseWidth1)
+		pulseCyclesRemaining1 = pulseWidth1;
+
+	if (pulseAmplitude2 && pulseWidth2)
+		pulseCyclesRemaining2 = pulseWidth2;		
 	
 	if (++ticks >= 10)
 	{
@@ -93,8 +96,7 @@ ISR(TIMER1_OVF_vect)
 	}
 }
 
-#define VMAX_FULL_PWM 150  // In decivolts
-
+#define VMAX_FULL_PWM 180  // In decivolts
 
 uint8_t decivoltsToPwm(uint8_t decivolts)
 {
@@ -142,27 +144,66 @@ void speedToVoltsAndPWM(uint8_t speed, uint8_t vMax, uint8_t vPwmCutoff, uint8_t
 	}
 }
 
+#define CS_DAC_1 (PB0)
+#define CS_DAC_2 (PB1)
 
-void initializePWM(void)
+#define RELAY_1  (PC3)
+#define RELAY_2  (PC2)
+
+
+void initializeOutput(void)
 {
 	// Set up timer 0 for PWM operations
 	TCNT0 = 0;
-	OCR0A = 0x00;
-	TCCR0A = _BV(COM0A1) | _BV(WGM01) | _BV(WGM00);
+	TCCR0A = 0;
 	TCCR0B = _BV(CS00);
-	DDRD |= _BV(PD6);
+	TIMSK0 = _BV(TOIE0);
+
+	DDRB |= _BV(CS_DAC_1) | _BV(CS_DAC_2) | _BV(PB3) | _BV(PB5) | _BV(PB2);
+	PORTB |= _BV(CS_DAC_1) | _BV(CS_DAC_2);
+	DDRC |= _BV(RELAY_1) | _BV(RELAY_2);
+	PORTC &= ~(_BV(RELAY_1) | _BV(RELAY_2));
+//	SPSR = _BV(SPI2X);
+	SPCR = _BV(SPE) | _BV(MSTR) | _BV(SPR0);
+
 }
 
 ISR(TIMER0_OVF_vect)
 {
+	static uint8_t phase = 0;
+	static uint8_t dacVal = 0;
 
-	if (0 == pulseCyclesRemaining)
+	switch(phase & 0x03)
 	{
-		TIMSK0 &= _BV(TOIE0);
-		OCR0A = basePwm;
-	} else {
-		pulseCyclesRemaining--;
-	}	
+		case 0:
+			PORTB |= _BV(CS_DAC_2); // Raise /CS on DAC 2
+			PORTB &= ~_BV(CS_DAC_1); // Drop /CS on DAC 1
+			dacVal = (pulseCyclesRemaining1)?pulseAmplitude1:basePwm1;
+			SPDR = 0b00110000 | (0x0F & (dacVal>>4));
+			break;
+		case 1:
+			SPDR = (0xF0 & (dacVal<<4));
+			break;
+
+		case 2:
+			PORTB |= _BV(CS_DAC_1); // Raise /CS on DAC 1
+			PORTB &= ~_BV(CS_DAC_2); // Drop /CS on DAC 2
+			dacVal = (pulseCyclesRemaining2)?pulseAmplitude2:basePwm2;
+			SPDR = 0b00110000 | (0x0F & (dacVal>>4));
+			break;
+
+		case 3:
+			SPDR = (0xF0 & (dacVal<<4));
+			break;
+	}
+	
+	phase++;
+
+	if (0 != pulseCyclesRemaining1)
+		pulseCyclesRemaining1--;
+
+	if (0 != pulseCyclesRemaining2)
+		pulseCyclesRemaining2--;		
 }
 
 // **** Bus Voltage Monitor
@@ -189,10 +230,14 @@ ISR(ADC_vect)
 }
 */
 
-uint8_t requestedSpeed = 0;
-uint8_t requestedDirection = 0;
+uint8_t requestedSpeed1 = 0;
+uint8_t requestedSpeed2 = 0;
 
-#define UPDATE_SPEED 0
+uint8_t requestedDirection1 = 0;
+uint8_t requestedDirection2 = 0;
+
+#define UPDATE_SPEED1 0
+#define UPDATE_SPEED2 1
 
 uint8_t updates = 0;
 
@@ -310,12 +355,20 @@ void PktHandler(void)
 		while(1);  // Force a watchdog reset
 		sei();
 	}
-	else if ('C' == rxBuffer[MRBUS_PKT_TYPE])
+	else if ('C' == rxBuffer[MRBUS_PKT_TYPE] && 0xFF != rxBuffer[MRBUS_PKT_SRC])
 	{
-		requestedSpeed = rxBuffer[7];
-		requestedDirection = rxBuffer[6];
-		updates |= _BV(UPDATE_SPEED);
-	
+		if (rxBuffer[MRBUS_PKT_SRC] == eeprom_read_byte(0x10))
+		{
+			requestedSpeed1 = rxBuffer[7];
+			requestedDirection1 = rxBuffer[6];
+			updates |= _BV(UPDATE_SPEED1);
+		} 
+		else if (rxBuffer[MRBUS_PKT_SRC] == eeprom_read_byte(0x11))
+		{
+			requestedSpeed2 = rxBuffer[7];
+			requestedDirection2 = rxBuffer[6];
+			updates |= _BV(UPDATE_SPEED2);
+		}
 	}
 
 	// FIXME:  Insert code here to handle incoming packets specific
@@ -406,7 +459,7 @@ int main(void)
 	// remove it if you don't use it.
 	initialize100HzTimer();
 	
-	initializePWM();
+	initializeOutput();
 
 	// Initialize MRBus core
 	mrbusPktQueueInitialize(&mrbusTxQueue, mrbusTxPktBufferArray, MRBUS_TX_BUFFER_DEPTH);
@@ -414,6 +467,11 @@ int main(void)
 	mrbusInit();
 
 	sei();	
+
+#define VMAX         180
+#define VPWM_CUTOFF   40
+			
+
 
 	while (1)
 	{
@@ -425,32 +483,46 @@ int main(void)
 			
 		// FIXME: Do any module-specific behaviours here in the loop.
 		
-		if (updates & _BV(UPDATE_SPEED))
+		if (updates & _BV(UPDATE_SPEED1))
 		{
-			updates &= ~_BV(UPDATE_SPEED);
-			if (0 == requestedDirection)
+			updates &= ~_BV(UPDATE_SPEED1);
+			if (0 == requestedDirection1)
 			{
-				requestedSpeed = 0;
+				requestedSpeed1 = 0;
 			}
-			else if (requestedDirection & 0x01)
+			else if (requestedDirection1 & 0x01)
 			{
-				PORTB &= ~0x01;	
+				PORTC |= _BV(RELAY_1);
 			}
-			else if (requestedDirection & 0x02)
+			else if (requestedDirection1 & 0x02)
 			{
-				PORTB |= 0x01;	
+				PORTC &= ~_BV(RELAY_1);
 			}
 			
-#define VMAX         120
-#define VPWM_CUTOFF   40
-			
-			speedToVoltsAndPWM(requestedSpeed, VMAX, VPWM_CUTOFF, &basePwm, &pulseAmplitude, &pulseWidth);
-			// Load basePWM into the timer 
-			OCR0A = basePwm;
-			
-		
+			speedToVoltsAndPWM(requestedSpeed1, VMAX, VPWM_CUTOFF, &basePwm1, &pulseAmplitude1, &pulseWidth1);
 		}
 		
+		if (updates & _BV(UPDATE_SPEED2))
+		{
+			updates &= ~_BV(UPDATE_SPEED2);
+			if (0 == requestedDirection2)
+			{
+				requestedSpeed2 = 0;
+			}
+			else if (requestedDirection2 & 0x01)
+			{
+				PORTC |= _BV(RELAY_2);
+			}
+			else if (requestedDirection2 & 0x02)
+			{
+				PORTC &= ~_BV(RELAY_2);
+			}
+			
+			speedToVoltsAndPWM(requestedSpeed2, VMAX, VPWM_CUTOFF, &basePwm2, &pulseAmplitude2, &pulseWidth2);
+			
+
+		}
+
 		
 		
 		if (decisecs >= update_decisecs && !(mrbusPktQueueFull(&mrbusTxQueue)))
@@ -459,9 +531,12 @@ int main(void)
 
 			txBuffer[MRBUS_PKT_SRC] = mrbus_dev_addr;
 			txBuffer[MRBUS_PKT_DEST] = 0xFF;
-			txBuffer[MRBUS_PKT_LEN] = 7;
+			txBuffer[MRBUS_PKT_LEN] = 10;
 			txBuffer[5] = 'S';
-			txBuffer[6] = pkt_count++;
+			txBuffer[6] = requestedSpeed1;
+			txBuffer[7] = requestedDirection1;
+			txBuffer[8] = requestedSpeed2;
+			txBuffer[9] = requestedDirection2;
 			mrbusPktQueuePush(&mrbusTxQueue, txBuffer, txBuffer[MRBUS_PKT_LEN]);
 			decisecs = 0;
 		}	

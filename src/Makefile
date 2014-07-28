@@ -87,8 +87,8 @@ INCS = ../../mrbus2/src/mrbus.h ../../mrbus2/src/mrbus-avr.h
 #SRCS = $(BASE_NAME).c ../../mrbus/src/mrbus-crc.c ../../mrbee/src/mrbee.c ../../mrbee/src/xbee.c
 #INCS = ../../mrbus/src/mrbus.h ../../mrbee/src/mrbee.h ../../mrbee/src/xbee.h
 
-AVRDUDE = avrdude -c usbtiny -p $(DEVICE) -B1
-AVRDUDE_SLOW = avrdude -c usbtiny -p $(DEVICE) -B32
+AVRDUDE = avrdude -c avrispmkii -p $(DEVICE) -B1
+AVRDUDE_SLOW = avrdude -c avrispmkii -p $(DEVICE) -B32
 
 OBJS = ${SRCS:.c=.o}
 INCLUDES = -I. -I../../mrbus2/src 
