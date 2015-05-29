@@ -1,4 +1,4 @@
 schematics mrb-ant.sch
 output-name ../pcb/mrb-ant
 skip-m4
-elements-dir ../../../footprints
+elements-dir ../../../ise-footprints
