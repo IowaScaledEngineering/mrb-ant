@@ -2635,11 +2635,9 @@ Layer(1 "component")
 	Line[1285.00mil 2265.00mil 1285.00mil 2075.00mil 10.00mil 20.00mil "clearline"]
 	Line[1285.00mil 2075.00mil 1260.00mil 2050.00mil 10.00mil 20.00mil "clearline"]
 	Line[1260.00mil 2050.00mil 1210.00mil 2050.00mil 10.00mil 20.00mil "clearline"]
-	Line[1390.00mil 2220.00mil 1355.00mil 2220.00mil 10.00mil 20.00mil "clearline"]
 	Line[1355.00mil 2220.00mil 1325.00mil 2190.00mil 10.00mil 20.00mil "clearline"]
 	Line[1325.00mil 2190.00mil 1325.00mil 2010.00mil 10.00mil 20.00mil "clearline"]
 	Line[1325.00mil 2010.00mil 1310.00mil 1995.00mil 10.00mil 20.00mil "clearline"]
-	Line[1390.00mil 2270.00mil 1305.00mil 2245.00mil 10.00mil 20.00mil "clearline"]
 	Line[1305.00mil 2245.00mil 1305.00mil 2055.00mil 10.00mil 20.00mil "clearline"]
 	Line[1305.00mil 2055.00mil 1250.00mil 2000.00mil 10.00mil 20.00mil "clearline"]
 	Line[1160.00mil 1870.00mil 1160.00mil 2035.00mil 10.00mil 20.00mil "clearline"]
@@ -2735,6 +2733,9 @@ Layer(1 "component")
 	Line[540.00mil 1405.00mil 615.00mil 1330.00mil 10.00mil 20.00mil "clearline"]
 	Line[615.00mil 1330.00mil 615.00mil 1265.00mil 10.00mil 20.00mil "clearline"]
 	Line[2570.00mil 900.00mil 2410.00mil 900.00mil 60.00mil 20.00mil ""]
+	Line[1390.00mil 2220.00mil 1355.00mil 2220.00mil 10.00mil 20.00mil "clearline"]
+	Line[1392.50mil 2270.00mil 1330.00mil 2270.00mil 10.00mil 20.00mil "clearline"]
+	Line[1330.00mil 2270.00mil 1305.00mil 2245.00mil 10.00mil 20.00mil "clearline"]
 	Polygon("clearpoly")
 	(
 		[3280.00mil 3365.00mil] [3815.00mil 3365.00mil] [3815.00mil 3555.00mil] [3280.00mil 3555.00mil] 
