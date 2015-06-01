@@ -1064,7 +1064,7 @@ Element["" "SMP4-BC-PLCC4" "D7" "unknown" 3685.00mil 530.00mil -90.00mil -205.00
 
 	)
 
-Element["" "DO-214AA_SMB" "D6" "unknown" 3260.00mil 770.00mil -310.00mil 35.00mil 0 100 ""]
+Element["" "DO-214AA_SMB" "D6" "unknown" 3260.00mil 770.00mil -220.00mil -30.00mil 0 100 ""]
 (
 	Pad[80.71mil 0.0000 88.58mil 0.0000 90.55mil 0.0000 96.55mil "1" "1" "square,edge2"]
 	Pad[-88.58mil 0.0000 -80.71mil 0.0000 90.55mil 0.0000 96.55mil "2" "2" "square"]
@@ -1618,7 +1618,7 @@ Element["" "cap-elec-Panasonic-FK--D8.00-H10.20-mm" "C10" "100uF" 2685.00mil 182
 
 	)
 
-Element["" "TERMBLK2_200MIL" "J6" "unknown" 3685.00mil 1080.00mil -250.00mil -255.00mil 1 100 ""]
+Element["" "TERMBLK2_200MIL" "J6" "unknown" 3685.00mil 1080.00mil -165.00mil -225.00mil 1 100 ""]
 (
 	Pin[0.0000 100.00mil 80.00mil 30.00mil 86.00mil 48.00mil "Pin_2" "1" "square,thermal(1X)"]
 	Pin[0.0000 -100.00mil 80.00mil 30.00mil 86.00mil 48.00mil "Pin_3" "2" "thermal(0X)"]
