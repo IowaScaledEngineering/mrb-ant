@@ -1495,24 +1495,6 @@ footprint=0805
 T 52000 49000 5 10 1 1 0 0 1
 comment=16V
 }
-C 70700 45700 1 90 0 schottky-diode-1.sym
-{
-T 70900 45900 5 10 1 1 90 0 1
-device=SK24
-T 70100 46000 5 10 1 1 90 0 1
-refdes=D8
-T 70700 45700 5 10 0 0 90 0 1
-footprint=DO-214AA_SMB
-}
-C 70800 51500 1 90 0 schottky-diode-1.sym
-{
-T 71000 51700 5 10 1 1 90 0 1
-device=SK24
-T 70200 51800 5 10 1 1 90 0 1
-refdes=D6
-T 70800 51500 5 10 0 0 90 0 1
-footprint=DO-214AA_SMB
-}
 C 63700 55700 1 0 0 mosfet-with-diode-1.sym
 {
 T 64600 56200 5 10 0 0 180 8 1
@@ -1592,4 +1574,22 @@ T 44100 52100 5 10 1 1 180 2 1
 refdes=JP2
 T 42700 51200 5 10 0 0 90 8 1
 footprint=JUMPER4-SMT
+}
+C 70700 45700 1 90 0 schottky-diode-1.sym
+{
+T 70900 45900 5 10 1 1 90 0 1
+device=SK24
+T 70100 46000 5 10 1 1 90 0 1
+refdes=D8
+T 70700 45700 5 10 0 0 90 0 1
+footprint=DO-214AA_SMB
+}
+C 70800 51500 1 90 0 schottky-diode-1.sym
+{
+T 71000 51700 5 10 1 1 90 0 1
+device=SK24
+T 70200 51800 5 10 1 1 90 0 1
+refdes=D6
+T 70800 51500 5 10 0 0 90 0 1
+footprint=DO-214AA_SMB
 }
