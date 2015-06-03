@@ -722,7 +722,7 @@ C 60200 43500 1 0 0 mcp49x2-1.sym
 T 60600 46300 5 10 1 1 0 0 1
 refdes=U6
 T 60800 43700 5 10 1 1 0 0 1
-device=MCP4912
+device=MCP4902
 T 60600 46100 5 10 0 0 0 0 1
 footprint=SO16
 }
