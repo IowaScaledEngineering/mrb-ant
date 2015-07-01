@@ -1,0 +1,6 @@
+[submodule "avr-i2c"]
+	path = avr-i2c
+	url = https://github.com/IowaScaledEngineering/avr-i2c.git
+[submodule "mrbus"]
+	path = mrbus
+	url = https://github.com/IowaScaledEngineering/mrbus.git
