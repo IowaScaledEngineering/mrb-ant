@@ -1,12 +1,12 @@
 #*************************************************************************
-#Title:    MRB-AVRTEMPLATE Makefile
+#Title:    MRB-ANT Makefile
 #Authors:  Michael Petersen <railfan@drgw.net>
 #          Nathan Holmes <maverick@drgw.net>
 #File:     MRB-AVRTEMPLATE Makefile
 #License:  GNU General Public License v3
 #
 #LICENSE:
-#    Copyright (C) 2012 Nathan Holmes and Michael Petersen
+#    Copyright (C) 2015 Nathan Holmes and Michael Petersen
 #
 #    Derived from example WinAVR project Makefile
 #
@@ -27,71 +27,32 @@
 
 BASE_NAME = mrb-ant
 
-#DEVICE  = atmega48
-#F_CPU   = 20000000  # Hz
-#FUSE_L  = 0xD7
-#FUSE_H  = 0xD4
-#FUSE_E  = 0x00
-
-# ATmega164P 20MHz @ 5.0V
-#DEVICE  = atmega164p
-#F_CPU   = 20000000  # Hz
-#FUSE_L  = 0xD7
-#FUSE_H  = 0xD1
-#FUSE_E  = 0x04
-
 # ATmega328P 20MHz @ 5.0V
-DEVICE  = atmega88
+DEVICE  = atmega328p
 F_CPU   = 20000000  # Hz
 FUSE_L  = 0xD7
 FUSE_H  = 0xD1
 FUSE_E  = 0x04
 
-# ATmega328P 12MHz @ 3.3V
-#DEVICE  = atmega328p
-#F_CPU   = 12000000  # Hz
-#FUSE_L  = 0xD7
-#FUSE_H  = 0xD1
-#FUSE_E  = 0x05
-
-# ATmega328P 3.579545MHz @ 3.3V
-#DEVICE  = atmega328p
-#F_CPU   = 3579545   # Hz
-#FUSE_L  = 0x97      # Clock output on PB0 (Debug)
-#FUSE_H  = 0xD1
-#FUSE_E  = 0x05
-
-# ATmega48 20MHz @ 5.0V
-#DEVICE  = atmega48
-#F_CPU   = 20000000  # Hz
-#FUSE_L  = 0xD7
-#FUSE_H  = 0xD4
-#FUSE_E  = 0x00
-
-# ATmega48 11.0592MHz @ 3.3V
-#DEVICE  = atmega48
-#F_CPU   = 11059200  # Hz
-#FUSE_L  = 0xD7
-#FUSE_H  = 0xD5
-#FUSE_E  = 0x00
-
-
+MRBUS_DIRECTORY=./mrbus/src
+I2CLIB_DIRECTORY=./avr-i2c
+PROGRAMMER_TYPE=avrispmkii
+#PROGRAMMER_TYPE=usbtiny
+PROGRAMMER_PORT=usb
 
 # MRBus
-DEFINES = -DMRBUS
-SRCS = $(BASE_NAME).c ../../mrbus2/src/mrbus-avr.c ../../mrbus2/src/mrbus-crc.c ../../mrbus2/src/mrbus-queue.c
-INCS = ../../mrbus2/src/mrbus.h ../../mrbus2/src/mrbus-avr.h
+DEFINES = -DMRBUS -DENABLE_WATCHDOG
+SRCS = $(BASE_NAME).c $(MRBUS_DIRECTORY)/mrbus-avr.c $(MRBUS_DIRECTORY)/mrbus-crc.c $(MRBUS_DIRECTORY)/mrbus-queue.c $(I2CLIB_DIRECTORY)/avr-i2c-master.c
+INCS = $(MRBUS_DIRECTORY)/mrbus.h $(MRBUS_DIRECTORY)/mrbus-avr.h $(I2CLIB_DIRECTORY)/avr-i2c-master.h
 
-# MRBee
-#DEFINES = -DMRBEE -DMRBEE_BAUD=115200
-#SRCS = $(BASE_NAME).c ../../mrbus/src/mrbus-crc.c ../../mrbee/src/mrbee.c ../../mrbee/src/xbee.c
-#INCS = ../../mrbus/src/mrbus.h ../../mrbee/src/mrbee.h ../../mrbee/src/xbee.h
+# PROGRAMMER_TYPE defines the programmer to be used
+# Common options are usbtiny and avrispmkii
 
-AVRDUDE = avrdude -c avrispmkii -p $(DEVICE) -B1
-AVRDUDE_SLOW = avrdude -c avrispmkii -p $(DEVICE) -B32
+AVRDUDE = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B1 -F
+AVRDUDE_SLOW = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B32
 
 OBJS = ${SRCS:.c=.o}
-INCLUDES = -I. -I../../mrbus2/src 
+INCLUDES = -I. -I$(MRBUS_DIRECTORY) 
 CFLAGS  = $(INCLUDES) -Wall -O2 -std=gnu99 -ffunction-sections -fdata-sections
 LDFLAGS = -Wl,-gc-sections
 
@@ -108,7 +69,6 @@ help:
 	@echo "make read ...... read the fuses"
 	@echo "make size ...... memory usage"
 	@echo "make clean ..... delete objects and hex file"
-	@echo "make release.... produce release tarball"
 	@echo "make terminal... open up avrdude terminal"
 
 hex: $(BASE_NAME).hex
@@ -171,46 +131,3 @@ disasm:	$(BASE_NAME).elf
 
 PWD := $(shell pwd)
 
-release: hex
-	@echo -n "Creating temporary build directories..."
-	@$(eval BTMPDIR := $(shell mktemp -d))
-	@$(eval TMPDIR := $(BTMPDIR)/$(BASE_NAME))
-	@$(eval BOILERPLATE_FILES := $(shell find ../../docs/release-boilerplate -type f -name *.txt -print))
-	@$(eval RELEASE_TIME := $(shell date +"%d%b%Y-%H%Mh"))
-	@mkdir -p $(TMPDIR)/mrbus/src
-	@mkdir -p $(TMPDIR)/$(BASE_NAME)/src
-	@echo "  [done]"
-
-	@echo -n "Copying boilerplate files..."
-	@cp $(BOILERPLATE_FILES) $(TMPDIR)
-	@echo "  [done]"
-
-	@echo -n "Copying Makefile..."
-	@cp Makefile $(TMPDIR)/$(BASE_NAME)/src/Makefile
-
-	@echo -n "Copying object..."
-	@cp $(BASE_NAME).hex $(TMPDIR)/$(BASE_NAME)/src/$(BASE_NAME).hex
-	@echo "  [done]"
-
-	@echo -n "Copying source files..."
-	@tar cPf - $(INCS) | tar xPf - -C $(TMPDIR)/$(BASE_NAME)/src/
-	@echo "  [done]"
-
-	@echo -n "Copying include files..."
-	@tar cPf - $(SRCS) | tar xPf - -C $(TMPDIR)/$(BASE_NAME)/src/
-	@echo "  [done]"
-
-	@echo -n "Writing file SVN statuses..."
-	@echo "### Archive built at $(RELEASE_TIME)" > $(TMPDIR)/$(BASE_NAME)/src/FILE_SVN_VERSIONS
-	@svn status -v $(BOILERPLATE_FILES) >> $(TMPDIR)/$(BASE_NAME)/src/FILE_SVN_VERSIONS
-	@svn status -v Makefile >> $(TMPDIR)/$(BASE_NAME)/src/FILE_SVN_VERSIONS
-	@svn status -v $(INCS) >> $(TMPDIR)/$(BASE_NAME)/src/FILE_SVN_VERSIONS
-	@svn status -v $(SRCS) >> $(TMPDIR)/$(BASE_NAME)/src/FILE_SVN_VERSIONS
-	@echo "  [done]"
-	
-
-	@echo -n "Creating tarball..."
-	@tar zcf $(BASE_NAME)-$(RELEASE_TIME).tgz -C $(BTMPDIR) $(BASE_NAME)
-	@echo "  [done]"
-
-	@echo "Release in $(BASE_NAME)-$(RELEASE_TIME).tgz"
