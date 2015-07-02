@@ -41,7 +41,7 @@ PROGRAMMER_TYPE=avrispmkii
 PROGRAMMER_PORT=usb
 
 # MRBus
-DEFINES = -DMRBUS -DENABLE_WATCHDOG
+DEFINES = -DMRBUS -DENABLE_WATCHDOG -DI2C_FREQ=100000
 SRCS = $(BASE_NAME).c $(MRBUS_DIRECTORY)/mrbus-avr.c $(MRBUS_DIRECTORY)/mrbus-crc.c $(MRBUS_DIRECTORY)/mrbus-queue.c $(I2CLIB_DIRECTORY)/avr-i2c-master.c
 INCS = $(MRBUS_DIRECTORY)/mrbus.h $(MRBUS_DIRECTORY)/mrbus-avr.h $(I2CLIB_DIRECTORY)/avr-i2c-master.h
 
@@ -49,10 +49,10 @@ INCS = $(MRBUS_DIRECTORY)/mrbus.h $(MRBUS_DIRECTORY)/mrbus-avr.h $(I2CLIB_DIRECT
 # Common options are usbtiny and avrispmkii
 
 AVRDUDE = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B1 -F
-AVRDUDE_SLOW = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B32
+AVRDUDE_SLOW = avrdude -P $(PROGRAMMER_PORT) -c $(PROGRAMMER_TYPE) -p $(DEVICE) -B32 -F
 
 OBJS = ${SRCS:.c=.o}
-INCLUDES = -I. -I$(MRBUS_DIRECTORY) 
+INCLUDES = -I. -I$(MRBUS_DIRECTORY) -I$(I2CLIB_DIRECTORY)
 CFLAGS  = $(INCLUDES) -Wall -O2 -std=gnu99 -ffunction-sections -fdata-sections
 LDFLAGS = -Wl,-gc-sections
 
