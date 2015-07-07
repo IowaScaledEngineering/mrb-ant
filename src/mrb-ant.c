@@ -5,7 +5,7 @@ File:     $Id: $
 License:  GNU General Public License v3
 
 LICENSE:
-    Copyright (C) 2014 Nathan Holmes
+    Copyright (C) 2015 Nathan Holmes
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -19,29 +19,16 @@ LICENSE:
 
 *************************************************************************/
 
+/* This version of the MRB-ANT code is designed to be used with v1.x of the hardware */
+
 #include <stdlib.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/eeprom.h>
 #include <avr/wdt.h>
 #include <util/delay.h>
-
-#ifdef MRBEE
-// If wireless, redefine the common variables and functions
-#include "mrbee.h"
-#define mrbus_rx_buffer mrbee_rx_buffer
-#define mrbus_tx_buffer mrbee_tx_buffer
-#define mrbus_state mrbee_state
-#define MRBUS_TX_PKT_READY MRBEE_TX_PKT_READY
-#define MRBUS_RX_PKT_READY MRBEE_RX_PKT_READY
-#define mrbux_rx_buffer mrbee_rx_buffer
-#define mrbus_tx_buffer mrbee_tx_buffer
-#define mrbus_state mrbee_state
-#define mrbusInit mrbeeInit
-#define mrbusPacketTransmit mrbeePacketTransmit
-#endif
-
 #include "mrbus.h"
+#include "avr-i2c-master.h"
 
 uint8_t mrbus_dev_addr = 0;
 
@@ -58,6 +45,7 @@ uint8_t pkt_count = 0;
 volatile uint8_t ticks;
 volatile uint16_t decisecs=0;
 volatile uint16_t update_decisecs=10;
+volatile uint8_t globalTicker=0;
 
 uint8_t basePwm1 = 0;
 uint8_t basePwm2 = 0;
@@ -79,8 +67,186 @@ void initialize100HzTimer(void)
 	decisecs = 0;
 }
 
+volatile uint8_t i2cStateMachineEnable = 0;
+volatile int8_t tempSensorA = 0;
+volatile int8_t tempSensorB = 0;
+
+#define I2C_ADDR_PCA9536  0x82
+#define I2C_ADDR_TC74_U8  0x90
+#define I2C_ADDR_TC74_U9  0x92
+
+typedef enum
+{
+	LED_OFF = 0x00,
+	LED_GREEN,
+	LED_RED,
+	LED_YELLOW,
+	LED_GREEN_SLOWBLINK,
+	LED_GREEN_FASTBLINK,
+	LED_RED_SLOWBLINK,
+	LED_RED_FASTBLINK,
+	LED_YELLOW_SLOWBLINK,
+	LED_YELLOW_FASTBLINK
+
+} LEDStatus;
+
+LEDStatus ledChA, ledChB;
+
+#define CH_A_GREEN 0x02
+#define CH_A_RED   0x01
+#define CH_B_GREEN 0x08
+#define CH_B_RED   0x04
+
+void writeLEDStatus()
+{
+	uint8_t i2cBuf[4];
+	i2cBuf[0] = I2C_ADDR_PCA9536;
+	i2cBuf[1] = 0x01; // 9536 output register
+	i2cBuf[2] = 0;
+
+	switch(ledChA)
+	{
+		case LED_GREEN:
+		case LED_GREEN_SLOWBLINK:
+		case LED_GREEN_FASTBLINK:
+			i2cBuf[2] |= CH_A_GREEN;
+			break;
+
+		case LED_RED:
+		case LED_RED_SLOWBLINK:
+		case LED_RED_FASTBLINK:
+			i2cBuf[2] |= CH_A_RED;
+			break;
+
+		case LED_YELLOW:
+		case LED_YELLOW_SLOWBLINK:
+		case LED_YELLOW_FASTBLINK:
+			i2cBuf[2] |= CH_A_GREEN | CH_A_RED;
+			break;
+
+		case LED_OFF:
+		default:
+			break;
+	}
+
+	switch(ledChA)
+	{
+
+		case LED_GREEN_SLOWBLINK:
+		case LED_RED_SLOWBLINK:
+		case LED_YELLOW_SLOWBLINK:
+			if (0 == (globalTicker & 0x04))
+				i2cBuf[2] &= ~(CH_A_GREEN | CH_A_RED);
+			break;
+
+		case LED_GREEN_FASTBLINK:
+		case LED_RED_FASTBLINK:
+		case LED_YELLOW_FASTBLINK:
+			if (0 == (globalTicker & 0x02))
+				i2cBuf[2] &= ~(CH_A_GREEN | CH_A_RED);
+			break;
+
+
+		default:
+			break;
+	}
+
+	switch(ledChB)
+	{
+		case LED_GREEN:
+		case LED_GREEN_SLOWBLINK:
+		case LED_GREEN_FASTBLINK:
+			i2cBuf[2] |= CH_B_GREEN;
+			break;
+
+		case LED_RED:
+		case LED_RED_SLOWBLINK:
+		case LED_RED_FASTBLINK:
+			i2cBuf[2] |= CH_B_RED;
+			break;
+
+		case LED_YELLOW:
+		case LED_YELLOW_SLOWBLINK:
+		case LED_YELLOW_FASTBLINK:
+			i2cBuf[2] |= CH_B_GREEN | CH_B_RED;
+			break;
+
+		case LED_OFF:
+		default:
+			break;
+	}
+
+	switch(ledChB)
+	{
+
+		case LED_GREEN_SLOWBLINK:
+		case LED_RED_SLOWBLINK:
+		case LED_YELLOW_SLOWBLINK:
+			if (0 == (globalTicker & 0x04))
+				i2cBuf[2] &= ~(CH_B_GREEN | CH_B_RED);
+			break;
+
+		case LED_GREEN_FASTBLINK:
+		case LED_RED_FASTBLINK:
+		case LED_YELLOW_FASTBLINK:
+			if (0 == (globalTicker & 0x02))
+				i2cBuf[2] &= ~(CH_B_GREEN | CH_B_RED);
+			break;
+
+
+		default:
+			break;
+	}
+	
+	// Got it - send to part
+	i2c_transmit(i2cBuf, 3, 1);
+	while(i2c_busy());
+}
+
+void indicatorsConfigure()
+{
+	uint8_t i2cBuf[4];
+	i2cBuf[0] = I2C_ADDR_PCA9536;
+	i2cBuf[1] = 0x03; // 9536 configuration register
+	i2cBuf[2] = 0; // All outputs
+	i2c_transmit(i2cBuf, 3, 1);
+	while(i2c_busy());
+
+	i2cBuf[0] = I2C_ADDR_PCA9536;
+	i2cBuf[1] = 0x01; // 9536 configuration register
+	i2cBuf[2] = 0x00; // All outputs
+	i2c_transmit(i2cBuf, 3, 1);
+	while(i2c_busy());
+
+}
+
+
+void tempSensorConfigure(uint8_t sensorAddr)
+{
+	uint8_t i2cBuf[4];
+	i2cBuf[0] = sensorAddr;
+	i2cBuf[1] = 0x01; // Configuration register
+	i2cBuf[2] = 0x00; // Take it out of standby, just in case
+	i2c_transmit(i2cBuf, 3, 1);
+	while(i2c_busy());
+
+	i2cBuf[0] = sensorAddr;
+	i2cBuf[1] = 0x00; // Set address back to data register
+	i2c_transmit(i2cBuf, 2, 1);
+	while(i2c_busy());
+}
+
+void i2cDevicesConfigure()
+{
+	indicatorsConfigure();
+	tempSensorConfigure(I2C_ADDR_TC74_U8);
+	tempSensorConfigure(I2C_ADDR_TC74_U9);
+}
+
+
 ISR(TIMER1_OVF_vect)
 {
+	static uint8_t nextI2CState = 0;
 	TCNT1 += 0xF3CB;
 	
 	if (pulseAmplitude1 && pulseWidth1)
@@ -93,7 +259,12 @@ ISR(TIMER1_OVF_vect)
 	{
 		ticks = 0;
 		decisecs++;
+		globalTicker++;
+		if (0 == i2cStateMachineEnable)
+			i2cStateMachineEnable = 1 + (0x07 & (nextI2CState++));
 	}
+
+
 }
 
 #define VMAX_FULL_PWM 180  // In decivolts
@@ -144,11 +315,12 @@ void speedToVoltsAndPWM(uint8_t speed, uint8_t vMax, uint8_t vPwmCutoff, uint8_t
 	}
 }
 
-#define CS_DAC_1 (PB0)
-#define CS_DAC_2 (PB1)
+#define CS_DAC (PB0)
 
-#define RELAY_1  (PC3)
-#define RELAY_2  (PC2)
+#define DIR_RELAY_A  (PC2)
+#define DIR_RELAY_B  (PC3)
+#define ACC_RELAY_A  (PB1)
+#define ACC_RELAY_B  (PB2)
 
 
 void initializeOutput(void)
@@ -159,14 +331,20 @@ void initializeOutput(void)
 	TCCR0B = _BV(CS00);
 	TIMSK0 = _BV(TOIE0);
 
-	DDRB |= _BV(CS_DAC_1) | _BV(CS_DAC_2) | _BV(PB3) | _BV(PB5) | _BV(PB2);
-	PORTB |= _BV(CS_DAC_1) | _BV(CS_DAC_2);
-	DDRC |= _BV(RELAY_1) | _BV(RELAY_2);
-	PORTC &= ~(_BV(RELAY_1) | _BV(RELAY_2));
+	DDRB |= _BV(CS_DAC) | _BV(PB3) | _BV(PB5) | _BV(ACC_RELAY_A) | _BV(ACC_RELAY_B);
+	PORTB |= _BV(CS_DAC);
+	PORTB &= ~(_BV(ACC_RELAY_A) | _BV(ACC_RELAY_B));
+
+	DDRC |= _BV(DIR_RELAY_A) | _BV(DIR_RELAY_B);
+	PORTC &= ~(_BV(DIR_RELAY_A) | _BV(DIR_RELAY_B));
+
+	DDRD &= ~(_BV(PD3) | _BV(PD4) | _BV(PD5) | _BV(PD6) | _BV(PD7));
+
 //	SPSR = _BV(SPI2X);
 	SPCR = _BV(SPE) | _BV(MSTR) | _BV(SPR0);
-
 }
+
+
 
 ISR(TIMER0_OVF_vect)
 {
@@ -176,8 +354,8 @@ ISR(TIMER0_OVF_vect)
 	switch(phase & 0x03)
 	{
 		case 0:
-			PORTB |= _BV(CS_DAC_2); // Raise /CS on DAC 2
-			PORTB &= ~_BV(CS_DAC_1); // Drop /CS on DAC 1
+			PORTB |= _BV(CS_DAC); // Raise /CS on DAC 2
+			PORTB &= ~_BV(CS_DAC); // Drop /CS on DAC 1
 			dacVal = (pulseCyclesRemaining1)?pulseAmplitude1:basePwm1;
 			SPDR = 0b00110000 | (0x0F & (dacVal>>4));
 			break;
@@ -186,8 +364,8 @@ ISR(TIMER0_OVF_vect)
 			break;
 
 		case 2:
-			PORTB |= _BV(CS_DAC_1); // Raise /CS on DAC 1
-			PORTB &= ~_BV(CS_DAC_2); // Drop /CS on DAC 2
+			PORTB |= _BV(CS_DAC); // Raise /CS on DAC 1
+			PORTB &= ~_BV(CS_DAC); // Drop /CS on DAC 2
 			dacVal = (pulseCyclesRemaining2)?pulseAmplitude2:basePwm2;
 			SPDR = 0b00110000 | (0x0F & (dacVal>>4));
 			break;
@@ -337,10 +515,10 @@ void PktHandler(void)
 		txBuffer[9]  = 0; // Software Revision
 		txBuffer[10]  = 0; // Hardware Major Revision
 		txBuffer[11]  = 0; // Hardware Minor Revision
-		txBuffer[12] = 'T';
-		txBuffer[13] = 'M';
-		txBuffer[14] = 'P';
-		txBuffer[15] = 'L';
+		txBuffer[12] = 'A';
+		txBuffer[13] = 'N';
+		txBuffer[14] = 'T';
+		txBuffer[15] = ' ';
 		mrbusPktQueuePush(&mrbusTxQueue, txBuffer, txBuffer[MRBUS_PKT_LEN]);
 		goto PktIgnore;
 	}
@@ -357,13 +535,13 @@ void PktHandler(void)
 	}
 	else if ('C' == rxBuffer[MRBUS_PKT_TYPE] && 0xFF != rxBuffer[MRBUS_PKT_SRC])
 	{
-		if (rxBuffer[MRBUS_PKT_SRC] == eeprom_read_byte(0x10))
+		if (rxBuffer[MRBUS_PKT_SRC] == eeprom_read_byte((uint8_t*)0x10))
 		{
 			requestedSpeed1 = rxBuffer[7];
 			requestedDirection1 = rxBuffer[6];
 			updates |= _BV(UPDATE_SPEED1);
 		} 
-		else if (rxBuffer[MRBUS_PKT_SRC] == eeprom_read_byte(0x11))
+		else if (rxBuffer[MRBUS_PKT_SRC] == eeprom_read_byte((uint8_t*)0x11))
 		{
 			requestedSpeed2 = rxBuffer[7];
 			requestedDirection2 = rxBuffer[6];
@@ -419,15 +597,9 @@ void init(void)
 	update_decisecs = (uint16_t)eeprom_read_byte((uint8_t*)MRBUS_EE_DEVICE_UPDATE_L) 
 		| (((uint16_t)eeprom_read_byte((uint8_t*)MRBUS_EE_DEVICE_UPDATE_H)) << 8);
 
-	// This line assures that update_decisecs is at least 1
+	// This assures that update_decisecs is at least 0.1s and a maximum of 4.0s
 	update_decisecs = max(1, update_decisecs);
-	
-	// FIXME: This line assures that update_decisecs is 2 seconds or less
-	// You probably don't want this, but it prevents new developers from wondering
-	// why their new node doesn't transmit (uninitialized eeprom will make the update
-	// interval 64k decisecs, or about 110 hours)  You'll probably want to make this
-	// something more sane for your node type, or remove it entirely.
-	update_decisecs = min(20, update_decisecs);
+	update_decisecs = min(40, update_decisecs);
 
 
 /*
@@ -450,6 +622,31 @@ void init(void)
 MRBusPacket mrbusTxPktBufferArray[MRBUS_TX_BUFFER_DEPTH];
 MRBusPacket mrbusRxPktBufferArray[MRBUS_RX_BUFFER_DEPTH];
 
+
+int8_t tempChA;
+int8_t tempChB;
+
+
+int8_t readTempSensor(uint8_t sensorAddress)
+{
+	uint8_t i2cBuf[2];
+
+	i2cBuf[0] = sensorAddress;
+	i2cBuf[1] = 0x00;
+	i2c_transmit(i2cBuf, 2, 0);
+	while(i2c_busy());
+
+	i2cBuf[0] = sensorAddress | 0x01;
+	i2cBuf[1] = 0x00;
+	i2c_transmit(i2cBuf, 2, 1);
+	while(i2c_busy());
+	if(i2c_receive(i2cBuf, 2))
+		return((int8_t)i2cBuf[1]);
+	
+	return(0);
+}
+
+
 int main(void)
 {
 	// Application initialization
@@ -460,7 +657,7 @@ int main(void)
 	initialize100HzTimer();
 	
 	initializeOutput();
-
+	i2c_master_init();
 	// Initialize MRBus core
 	mrbusPktQueueInitialize(&mrbusTxQueue, mrbusTxPktBufferArray, MRBUS_TX_BUFFER_DEPTH);
 	mrbusPktQueueInitialize(&mrbusRxQueue, mrbusRxPktBufferArray, MRBUS_RX_BUFFER_DEPTH);
@@ -470,12 +667,41 @@ int main(void)
 
 #define VMAX         180
 #define VPWM_CUTOFF   40
-			
+	i2cDevicesConfigure();
 
-
+	ledChA = LED_RED;
+	ledChB = LED_RED;
 	while (1)
 	{
 		wdt_reset();
+
+		if (i2cStateMachineEnable)	
+		{
+			// Start I2C stuff based on phase
+			switch(i2cStateMachineEnable)
+			{
+				case 1:
+				case 3:
+				case 5:
+				case 7:
+					writeLEDStatus();
+					break;
+
+				case 2:
+					tempChA = readTempSensor(I2C_ADDR_TC74_U8);
+					break;
+
+				case 6:
+					tempChB = readTempSensor(I2C_ADDR_TC74_U9);
+					break;
+		
+
+				default:
+					break;
+			}
+
+			i2cStateMachineEnable = 0;
+		}
 
 		// Handle any packets that may have come in
 		if (mrbusPktQueueDepth(&mrbusRxQueue))
@@ -492,11 +718,11 @@ int main(void)
 			}
 			else if (requestedDirection1 & 0x01)
 			{
-				PORTC |= _BV(RELAY_1);
+				PORTC |= _BV(DIR_RELAY_A);
 			}
 			else if (requestedDirection1 & 0x02)
 			{
-				PORTC &= ~_BV(RELAY_1);
+				PORTC &= ~_BV(DIR_RELAY_A);
 			}
 			
 			speedToVoltsAndPWM(requestedSpeed1, VMAX, VPWM_CUTOFF, &basePwm1, &pulseAmplitude1, &pulseWidth1);
@@ -511,11 +737,11 @@ int main(void)
 			}
 			else if (requestedDirection2 & 0x01)
 			{
-				PORTC |= _BV(RELAY_2);
+				PORTC |= _BV(DIR_RELAY_B);
 			}
 			else if (requestedDirection2 & 0x02)
 			{
-				PORTC &= ~_BV(RELAY_2);
+				PORTC &= ~_BV(DIR_RELAY_B);
 			}
 			
 			speedToVoltsAndPWM(requestedSpeed2, VMAX, VPWM_CUTOFF, &basePwm2, &pulseAmplitude2, &pulseWidth2);
@@ -533,8 +759,10 @@ int main(void)
 			txBuffer[MRBUS_PKT_DEST] = 0xFF;
 			txBuffer[MRBUS_PKT_LEN] = 10;
 			txBuffer[5] = 'S';
-			txBuffer[6] = requestedSpeed1;
-			txBuffer[7] = requestedDirection1;
+//			txBuffer[6] = requestedSpeed1;
+//			txBuffer[7] = requestedDirection1;
+			txBuffer[6] = tempChA;
+			txBuffer[7] = tempChB;
 			txBuffer[8] = requestedSpeed2;
 			txBuffer[9] = requestedDirection2;
 			mrbusPktQueuePush(&mrbusTxQueue, txBuffer, txBuffer[MRBUS_PKT_LEN]);
@@ -556,8 +784,6 @@ int main(void)
 			// so that we don't miss things we're receiving while waiting to transmit
 			if (fail)
 			{
-
-#ifndef MRBEE
 				uint8_t bus_countdown = 20;
 				while (bus_countdown-- > 0 && !mrbusIsBusIdle())
 				{
@@ -566,7 +792,6 @@ int main(void)
 					if (mrbusPktQueueDepth(&mrbusRxQueue))
 						PktHandler();
 				}
-#endif
 			}
 		}
 	}
