@@ -724,7 +724,7 @@ refdes=U6
 T 60800 43700 5 10 1 1 0 0 1
 device=MCP4902
 T 60600 46100 5 10 0 0 0 0 1
-footprint=SO16
+footprint=SO14
 }
 C 58100 58800 1 0 0 5V-plus-1.sym
 {
