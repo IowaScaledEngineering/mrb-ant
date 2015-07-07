@@ -34,6 +34,8 @@ FUSE_L  = 0xD7
 FUSE_H  = 0xD1
 FUSE_E  = 0x04
 
+GITREV := 'GIT_REV=0x$(shell git rev-parse --short=6 HEAD)L'
+
 MRBUS_DIRECTORY=./mrbus/src
 I2CLIB_DIRECTORY=./avr-i2c
 PROGRAMMER_TYPE=avrispmkii
@@ -41,7 +43,7 @@ PROGRAMMER_TYPE=avrispmkii
 PROGRAMMER_PORT=usb
 
 # MRBus
-DEFINES = -DMRBUS -DENABLE_WATCHDOG -DI2C_FREQ=100000
+DEFINES = -DMRBUS -DENABLE_WATCHDOG -DI2C_FREQ=100000 -D$(GITREV)
 SRCS = $(BASE_NAME).c $(MRBUS_DIRECTORY)/mrbus-avr.c $(MRBUS_DIRECTORY)/mrbus-crc.c $(MRBUS_DIRECTORY)/mrbus-queue.c $(I2CLIB_DIRECTORY)/avr-i2c-master.c
 INCS = $(MRBUS_DIRECTORY)/mrbus.h $(MRBUS_DIRECTORY)/mrbus-avr.h $(I2CLIB_DIRECTORY)/avr-i2c-master.h
 
@@ -62,6 +64,7 @@ COMPILE = avr-gcc $(DEFINES) -DF_CPU=$(F_CPU) $(CFLAGS) $(LDFLAGS) -mmcu=$(DEVIC
 #COMPILE = avr-gcc -Wall -Os -DF_CPU=$(F_CPU) $(CFLAGS) -mmcu=$(DEVICE) -E -dM
 
 help:
+	@echo "make setup...... init/update git submodules"
 	@echo "make hex ....... build $(BASE_NAME).hex"
 	@echo "make flash ..... flash the firmware"
 	@echo "make fuse ...... flash the fuses"
@@ -74,6 +77,10 @@ help:
 hex: $(BASE_NAME).hex
 
 program: fuse flash
+
+setup:
+	git submodule init
+	git submodule update
 
 terminal:
 	$(AVRDUDE_SLOW) -t

@@ -30,6 +30,13 @@ LICENSE:
 #include "mrbus.h"
 #include "avr-i2c-master.h"
 
+
+#define MRBUS_EE_SRC_A_ADDRESS    0x10
+#define MRBUS_EE_SRC_B_ADDRESS    0x11
+#define MRBUS_EE_THROTTLE_TIMEOUT 0x12
+
+uint8_t timeoutValue;
+
 uint8_t mrbus_dev_addr = 0;
 
 uint8_t pkt_count = 0;
@@ -55,6 +62,9 @@ uint8_t pulseAmplitude1 = 0;
 uint8_t pulseAmplitude2 = 0;
 uint8_t pulseWidth1 = 0;
 uint8_t pulseWidth2 = 0;
+
+volatile uint8_t timeoutChA;
+volatile uint8_t timeoutChB;
 
 void initialize100HzTimer(void)
 {
@@ -262,6 +272,13 @@ ISR(TIMER1_OVF_vect)
 		globalTicker++;
 		if (0 == i2cStateMachineEnable)
 			i2cStateMachineEnable = 1 + (0x07 & (nextI2CState++));
+			
+		if (timeoutChA)
+			timeoutChA--;
+
+		if (timeoutChB)
+			timeoutChB--;
+			
 	}
 
 
@@ -354,9 +371,9 @@ ISR(TIMER0_OVF_vect)
 	switch(phase & 0x03)
 	{
 		case 0:
-			PORTB |= _BV(CS_DAC); // Raise /CS on DAC 2
-			PORTB &= ~_BV(CS_DAC); // Drop /CS on DAC 1
+			PORTB |= _BV(CS_DAC); // Raise /CS
 			dacVal = (pulseCyclesRemaining1)?pulseAmplitude1:basePwm1;
+			PORTB &= ~_BV(CS_DAC); // Drop /CS
 			SPDR = 0b00110000 | (0x0F & (dacVal>>4));
 			break;
 		case 1:
@@ -364,10 +381,10 @@ ISR(TIMER0_OVF_vect)
 			break;
 
 		case 2:
-			PORTB |= _BV(CS_DAC); // Raise /CS on DAC 1
-			PORTB &= ~_BV(CS_DAC); // Drop /CS on DAC 2
+			PORTB |= _BV(CS_DAC); // Raise /CS
 			dacVal = (pulseCyclesRemaining2)?pulseAmplitude2:basePwm2;
-			SPDR = 0b00110000 | (0x0F & (dacVal>>4));
+			PORTB &= ~_BV(CS_DAC); // Drop /CS
+			SPDR = 0b10110000 | (0x0F & (dacVal>>4));
 			break;
 
 		case 3:
@@ -384,30 +401,6 @@ ISR(TIMER0_OVF_vect)
 		pulseCyclesRemaining2--;		
 }
 
-// **** Bus Voltage Monitor
-/*
-// Uncomment this block (and the ADC initialization in the init() function) if you want to continuously monitor bus voltage
-
-volatile uint8_t busVoltage=0;
-
-ISR(ADC_vect)
-{
-	static uint16_t busVoltageAccum=0;
-	static uint8_t busVoltageCount=0;
-
-	busVoltageAccum += ADC;
-	if (++busVoltageCount >= 64)
-	{
-		busVoltageAccum = busVoltageAccum / 64;
-        //At this point, we're at (Vbus/6) / 5 * 1024
-        //So multiply by 300, divide by 1024, or multiply by 150 and divide by 512
-        busVoltage = ((uint32_t)busVoltageAccum * 150) / 512;
-		busVoltageAccum = 0;
-		busVoltageCount = 0;
-	}
-}
-*/
-
 uint8_t requestedSpeed1 = 0;
 uint8_t requestedSpeed2 = 0;
 
@@ -418,6 +411,10 @@ uint8_t requestedDirection2 = 0;
 #define UPDATE_SPEED2 1
 
 uint8_t updates = 0;
+
+uint8_t srcAddrChA = 0;
+uint8_t srcAddrChB = 0;
+uint8_t dipSwitchValue = 0;
 
 void PktHandler(void)
 {
@@ -504,16 +501,19 @@ void PktHandler(void)
 	}
 	else if ('V' == rxBuffer[MRBUS_PKT_TYPE]) 
 	{
+#ifndef GIT_REV
+#define GIT_REV 0L
+#endif
 		// Version
 		txBuffer[MRBUS_PKT_DEST] = rxBuffer[MRBUS_PKT_SRC];
 		txBuffer[MRBUS_PKT_SRC] = mrbus_dev_addr;
 		txBuffer[MRBUS_PKT_LEN] = 16;
 		txBuffer[MRBUS_PKT_TYPE] = 'v';
 		txBuffer[6]  = MRBUS_VERSION_WIRED;
-		txBuffer[7]  = 0; // Software Revision
-		txBuffer[8]  = 0; // Software Revision
-		txBuffer[9]  = 0; // Software Revision
-		txBuffer[10]  = 0; // Hardware Major Revision
+		txBuffer[7]  = 0xFF & ((uint32_t)(GIT_REV))>>16; // Software Revision
+		txBuffer[8]  = 0xFF & ((uint32_t)(GIT_REV))>>8; // Software Revision
+		txBuffer[9]  = 0xFF & (GIT_REV); // Software Revision
+		txBuffer[10]  = 1; // Hardware Major Revision
 		txBuffer[11]  = 0; // Hardware Minor Revision
 		txBuffer[12] = 'A';
 		txBuffer[13] = 'N';
@@ -535,22 +535,22 @@ void PktHandler(void)
 	}
 	else if ('C' == rxBuffer[MRBUS_PKT_TYPE] && 0xFF != rxBuffer[MRBUS_PKT_SRC])
 	{
-		if (rxBuffer[MRBUS_PKT_SRC] == eeprom_read_byte((uint8_t*)0x10))
+		if (rxBuffer[MRBUS_PKT_SRC] == srcAddrChA)
 		{
 			requestedSpeed1 = rxBuffer[7];
 			requestedDirection1 = rxBuffer[6];
 			updates |= _BV(UPDATE_SPEED1);
+			timeoutChA = timeoutValue;
 		} 
-		else if (rxBuffer[MRBUS_PKT_SRC] == eeprom_read_byte((uint8_t*)0x11))
+		else if (rxBuffer[MRBUS_PKT_SRC] == srcAddrChB)
 		{
 			requestedSpeed2 = rxBuffer[7];
 			requestedDirection2 = rxBuffer[6];
 			updates |= _BV(UPDATE_SPEED2);
+			timeoutChB = timeoutValue;			
 		}
 	}
 
-	// FIXME:  Insert code here to handle incoming packets specific
-	// to the device.
 
 	//*************** END PACKET HANDLER  ***************
 
@@ -593,6 +593,10 @@ void init(void)
 		mrbus_dev_addr = 0x03;
 		eeprom_write_byte((uint8_t*)MRBUS_EE_DEVICE_ADDR, mrbus_dev_addr);
 	}
+
+	// If our address is the default address, get it from the dip switches
+	if (0x03 == mrbus_dev_addr)
+		mrbus_dev_addr = 0x30 + (0x0F & dipSwitchValue);
 	
 	update_decisecs = (uint16_t)eeprom_read_byte((uint8_t*)MRBUS_EE_DEVICE_UPDATE_L) 
 		| (((uint16_t)eeprom_read_byte((uint8_t*)MRBUS_EE_DEVICE_UPDATE_H)) << 8);
@@ -600,20 +604,20 @@ void init(void)
 	// This assures that update_decisecs is at least 0.1s and a maximum of 4.0s
 	update_decisecs = max(1, update_decisecs);
 	update_decisecs = min(40, update_decisecs);
+	
+	srcAddrChA = eeprom_read_byte((uint8_t*)MRBUS_EE_SRC_A_ADDRESS);
+	srcAddrChB = eeprom_read_byte((uint8_t*)MRBUS_EE_SRC_B_ADDRESS);
+	
+	dipSwitchValue = (PIND>>3) & 0x1F;
+	if (0xFF == srcAddrChA)
+		srcAddrChA = 0x20 + (0x1E & (dipSwitchValue<<1));
 
-
-/*
-// Uncomment this block to set up the ADC to continuously monitor the bus voltage using a 3:1 divider tied into the ADC7 input
-// You also need to uncomment the ADC ISR near the top of the file
-	// Setup ADC
-	ADMUX  = 0x47;  // AVCC reference; ADC7 input
-	ADCSRA = _BV(ADATE) | _BV(ADIF) | _BV(ADPS2) | _BV(ADPS1); // 128 prescaler
-	ADCSRB = 0x00;
-	DIDR0  = 0x00;  // No digitals were harmed in the making of this ADC
-
-	busVoltage = 0;
-	ADCSRA |= _BV(ADEN) | _BV(ADSC) | _BV(ADIE) | _BV(ADIF);
-*/
+	if (0xFF == srcAddrChB)
+		srcAddrChB = 0x21 + (0x1E & (dipSwitchValue<<1));
+	
+	timeoutValue = eeprom_read_byte((uint8_t*)MRBUS_EE_THROTTLE_TIMEOUT);
+	timeoutValue = max(40, timeoutValue);
+	
 }
 
 #define MRBUS_TX_BUFFER_DEPTH 4
@@ -645,7 +649,6 @@ int8_t readTempSensor(uint8_t sensorAddress)
 	
 	return(0);
 }
-
 
 int main(void)
 {
@@ -706,8 +709,32 @@ int main(void)
 		// Handle any packets that may have come in
 		if (mrbusPktQueueDepth(&mrbusRxQueue))
 			PktHandler();
+		
+		if (tempChA > 75)
+		{
+			ledChA = LED_RED_FASTBLINK;
+		} else if (0 == timeoutChA) {
+			ledChA = LED_GREEN_SLOWBLINK;
+			requestedDirection1 = 0;
+			updates |= _BV(UPDATE_SPEED1);
 			
-		// FIXME: Do any module-specific behaviours here in the loop.
+		} else {
+			ledChA = LED_GREEN;
+		}
+
+		if (tempChB > 75)
+		{
+			ledChB = LED_RED_FASTBLINK;
+		} else if (0 == timeoutChB) {
+			ledChB = LED_GREEN_SLOWBLINK;
+			requestedDirection2 = 0;
+			updates |= _BV(UPDATE_SPEED2);
+
+		} else {
+			ledChB = LED_GREEN;
+		}
+
+		
 		
 		if (updates & _BV(UPDATE_SPEED1))
 		{
@@ -724,7 +751,7 @@ int main(void)
 			{
 				PORTC &= ~_BV(DIR_RELAY_A);
 			}
-			
+
 			speedToVoltsAndPWM(requestedSpeed1, VMAX, VPWM_CUTOFF, &basePwm1, &pulseAmplitude1, &pulseWidth1);
 		}
 		
@@ -745,8 +772,6 @@ int main(void)
 			}
 			
 			speedToVoltsAndPWM(requestedSpeed2, VMAX, VPWM_CUTOFF, &basePwm2, &pulseAmplitude2, &pulseWidth2);
-			
-
 		}
 
 		
@@ -757,14 +782,14 @@ int main(void)
 
 			txBuffer[MRBUS_PKT_SRC] = mrbus_dev_addr;
 			txBuffer[MRBUS_PKT_DEST] = 0xFF;
-			txBuffer[MRBUS_PKT_LEN] = 10;
+			txBuffer[MRBUS_PKT_LEN] = 12;
 			txBuffer[5] = 'S';
-//			txBuffer[6] = requestedSpeed1;
-//			txBuffer[7] = requestedDirection1;
-			txBuffer[6] = tempChA;
-			txBuffer[7] = tempChB;
+			txBuffer[6] = requestedSpeed1;
+			txBuffer[7] = requestedDirection1;
 			txBuffer[8] = requestedSpeed2;
 			txBuffer[9] = requestedDirection2;
+			txBuffer[10] = tempChA;
+			txBuffer[11] = tempChB;
 			mrbusPktQueuePush(&mrbusTxQueue, txBuffer, txBuffer[MRBUS_PKT_LEN]);
 			decisecs = 0;
 		}	
