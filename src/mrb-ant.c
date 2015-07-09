@@ -407,6 +407,9 @@ uint8_t requestedSpeed2 = 0;
 uint8_t requestedDirection1 = 0;
 uint8_t requestedDirection2 = 0;
 
+uint8_t requestedFunctions1 = 0;
+uint8_t requestedFunctions2 = 0;
+
 #define UPDATE_SPEED1 0
 #define UPDATE_SPEED2 1
 
@@ -539,6 +542,11 @@ void PktHandler(void)
 		{
 			requestedSpeed1 = rxBuffer[7];
 			requestedDirection1 = rxBuffer[6];
+			if (rxBuffer[MRBUS_PKT_LEN] >= 10)
+				requestedFunctions1 = rxBuffer[8];
+			else 
+				requestedFunctions1 = 0;
+				
 			updates |= _BV(UPDATE_SPEED1);
 			timeoutChA = timeoutValue;
 		} 
@@ -546,6 +554,11 @@ void PktHandler(void)
 		{
 			requestedSpeed2 = rxBuffer[7];
 			requestedDirection2 = rxBuffer[6];
+			if (rxBuffer[MRBUS_PKT_LEN] >= 10)
+				requestedFunctions2 = rxBuffer[8];
+			else 
+				requestedFunctions2 = 0;
+
 			updates |= _BV(UPDATE_SPEED2);
 			timeoutChB = timeoutValue;			
 		}
@@ -716,6 +729,7 @@ int main(void)
 		} else if (0 == timeoutChA) {
 			ledChA = LED_GREEN_SLOWBLINK;
 			requestedDirection1 = 0;
+			requestedFunctions1 = 0;
 			updates |= _BV(UPDATE_SPEED1);
 			
 		} else {
@@ -728,6 +742,7 @@ int main(void)
 		} else if (0 == timeoutChB) {
 			ledChB = LED_GREEN_SLOWBLINK;
 			requestedDirection2 = 0;
+			requestedFunctions2 = 0;
 			updates |= _BV(UPDATE_SPEED2);
 
 		} else {
@@ -752,6 +767,12 @@ int main(void)
 				PORTC &= ~_BV(DIR_RELAY_A);
 			}
 
+			if (requestedFunctions1 & 0x01)
+				PORTB |= _BV(ACC_RELAY_A);
+			else 
+				PORTB &= ~_BV(ACC_RELAY_A);
+
+
 			speedToVoltsAndPWM(requestedSpeed1, VMAX, VPWM_CUTOFF, &basePwm1, &pulseAmplitude1, &pulseWidth1);
 		}
 		
@@ -770,6 +791,11 @@ int main(void)
 			{
 				PORTC &= ~_BV(DIR_RELAY_B);
 			}
+			
+			if (requestedFunctions2 & 0x01)
+				PORTB |= _BV(ACC_RELAY_B);
+			else 
+				PORTB &= ~_BV(ACC_RELAY_B);
 			
 			speedToVoltsAndPWM(requestedSpeed2, VMAX, VPWM_CUTOFF, &basePwm2, &pulseAmplitude2, &pulseWidth2);
 		}
