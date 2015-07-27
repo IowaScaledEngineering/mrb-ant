@@ -6,7 +6,7 @@ FileVersion[20070407]
 PCB["" 390000 390000]
 
 Grid[500.0 0 0 1]
-Cursor[304500 297500 0.000000]
+Cursor[0 12000 0.000000]
 PolyArea[200000000.000000]
 Thermal[0.500000]
 DRC[600 600 600 600 2000 700]
@@ -1938,7 +1938,7 @@ Element["" "0805" "C9" "1uF" 108000 165500 -14000 -3000 0 100 ""]
 
 	)
 
-Element["" "SOT26" "U12" "unknown" 80500 293000 -8000 13000 1 100 ""]
+Element["" "SOT26" "U12" "unknown" 80500 293000 -22500 -4000 0 100 ""]
 (
 	Pad[-800 0 800 0 2400 3000 3000 "1" "1" "square,edge2"]
 	Pad[-800 -3900 800 -3900 2400 3000 3000 "2" "2" "square,edge2"]
@@ -3342,7 +3342,7 @@ Layer(2 "solder")
 	Line[175000 175500 175000 157500 1000 2000 "clearline"]
 	Line[81500 114500 67500 114500 1000 2000 "clearline"]
 	Line[230000 295000 220000 295000 2500 2000 ""]
-	Line[230000 305000 207000 305000 2500 2000 "clearline"]
+	Line[230000 305000 207000 305000 2500 3200 "clearline"]
 	Line[245500 79500 241000 79500 2500 2000 "clearline"]
 	Line[241000 79500 236500 84000 2500 2000 "clearline"]
 	Line[236500 84000 236500 93500 2500 2000 "clearline"]
@@ -3567,7 +3567,7 @@ Layer(5 "silk")
 	Text[125500 270000 0 100 "Iowa Scaled Engineering" "clearline"]
 	Text[125500 285000 0 100 "CC BY-SA    (C) 2015" "clearline"]
 	Text[125500 291000 0 100 "http://www.iascaled.com" "clearline"]
-	Text[125500 279000 0 100 "MRB-ANT v1.1" "clearline"]
+	Text[125500 279000 0 100 "MRB-ANT v1.2" "clearline,selected"]
 )
 NetList()
 (
