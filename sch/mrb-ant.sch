@@ -1719,7 +1719,7 @@ C 59700 41300 1 270 0 capacitor-1.sym
 T 60400 41100 5 10 0 1 270 0 1
 device=CAPACITOR
 T 60000 41000 5 10 1 1 0 0 1
-refdes=C16x
+refdes=C16X
 T 60600 41100 5 10 0 0 270 0 1
 symversion=0.1
 T 60000 40700 5 10 1 1 0 2 1
@@ -1734,7 +1734,7 @@ C 59000 41300 1 90 1 capacitor-1.sym
 T 58300 41100 5 10 0 1 270 2 1
 device=CAPACITOR
 T 58700 41000 5 10 1 1 0 6 1
-refdes=C17x
+refdes=C17X
 T 58100 41100 5 10 0 0 270 2 1
 symversion=0.1
 T 58700 40700 5 10 1 1 0 8 1
@@ -1747,7 +1747,7 @@ description=25V
 C 57700 41300 1 90 1 capacitor-1.sym
 {
 T 57400 41000 5 10 1 1 0 6 1
-refdes=C18x
+refdes=C18X
 T 57400 40700 5 10 1 1 0 8 1
 value=100pF
 T 57400 40500 5 10 1 1 0 8 1
@@ -1786,7 +1786,7 @@ device=CAPACITOR
 T 64600 41100 5 10 0 0 270 0 1
 symversion=0.1
 T 64000 41000 5 10 1 1 0 0 1
-refdes=C19x
+refdes=C19X
 T 64000 40700 5 10 1 1 0 2 1
 value=10uF
 T 64000 40300 5 10 1 1 0 2 1
@@ -1803,7 +1803,7 @@ symversion=0.1
 T 62700 40300 5 10 0 1 0 8 1
 footprint=0805
 T 62700 41000 5 10 1 1 0 6 1
-refdes=C20x
+refdes=C20X
 T 62700 40700 5 10 1 1 0 8 1
 value=100pF
 T 62700 40500 5 10 1 1 0 8 1
@@ -1818,7 +1818,7 @@ symversion=0.1
 T 61400 40300 5 10 0 1 0 8 1
 footprint=0805
 T 61400 41000 5 10 1 1 0 6 1
-refdes=C21x
+refdes=C21X
 T 61400 40700 5 10 1 1 0 8 1
 value=100pF
 T 61400 40500 5 10 1 1 0 8 1
