@@ -34,6 +34,9 @@ LICENSE:
 #define MRBUS_EE_SRC_A_ADDRESS    0x10
 #define MRBUS_EE_SRC_B_ADDRESS    0x11
 #define MRBUS_EE_THROTTLE_TIMEOUT 0x12
+#define OVERTEMP_THRESHOLD  75
+#define OVERTEMP_REENABLE   70
+
 
 uint8_t timeoutValue;
 
@@ -285,6 +288,8 @@ ISR(TIMER1_OVF_vect)
 }
 
 #define VMAX_FULL_PWM 180  // In decivolts
+#define VMAX          135
+#define VPWM_CUTOFF   60
 
 uint8_t decivoltsToPwm(uint8_t decivolts)
 {
@@ -295,6 +300,8 @@ uint8_t pwmToDecivolts(uint8_t pwm)
 {
 	return ((uint16_t)pwm * VMAX_FULL_PWM) / 255;
 }
+
+#define PWM_WIDTH  75
 
 void speedToVoltsAndPWM(uint8_t speed, uint8_t vMax, uint8_t vPwmCutoff, uint8_t* basePwm, uint8_t* pulseAmplitude, uint8_t* pulseWidth)
 {
@@ -323,7 +330,7 @@ void speedToVoltsAndPWM(uint8_t speed, uint8_t vMax, uint8_t vPwmCutoff, uint8_t
 		uint8_t vPulse = vOut * (vPwmCutoff - vPwmMax) / vPwmCutoff + vPwmMax; // <- Makes the pulses go to equality with output voltage at cutoff
 		
 		*pulseAmplitude = decivoltsToPwm(vPulse);
-		*pulseWidth = 75;
+		*pulseWidth = PWM_WIDTH;
 	}
 	else
 	{
@@ -643,7 +650,6 @@ MRBusPacket mrbusRxPktBufferArray[MRBUS_RX_BUFFER_DEPTH];
 int8_t tempChA;
 int8_t tempChB;
 
-
 int8_t readTempSensor(uint8_t sensorAddress)
 {
 	uint8_t i2cBuf[2];
@@ -663,8 +669,14 @@ int8_t readTempSensor(uint8_t sensorAddress)
 	return(0);
 }
 
+#define STATUS_OVERTEMP_A 0x01
+#define STATUS_OVERTEMP_B 0x02
+
+
 int main(void)
 {
+	uint8_t status = 0;
+
 	// Application initialization
 	init();
 
@@ -681,12 +693,10 @@ int main(void)
 
 	sei();	
 
-#define VMAX         180
-#define VPWM_CUTOFF   40
 	i2cDevicesConfigure();
 
-	ledChA = LED_RED;
-	ledChB = LED_RED;
+	ledChA = LED_RED_FASTBLINK;
+	ledChB = LED_RED_FASTBLINK;
 	while (1)
 	{
 		wdt_reset();
@@ -722,10 +732,19 @@ int main(void)
 		// Handle any packets that may have come in
 		if (mrbusPktQueueDepth(&mrbusRxQueue))
 			PktHandler();
+
+		if (tempChA > OVERTEMP_THRESHOLD)
+			status |= STATUS_OVERTEMP_A;
+		else if ((status & STATUS_OVERTEMP_A) && tempChA < OVERTEMP_REENABLE)
+			status &= ~(STATUS_OVERTEMP_A);
+			
 		
-		if (tempChA > 75)
+		if (status & STATUS_OVERTEMP_A)
 		{
-			ledChA = LED_RED_FASTBLINK;
+			ledChA = LED_RED;
+			requestedDirection1 = 0;
+			requestedSpeed1 = 0;
+			updates |= _BV(UPDATE_SPEED1);
 		} else if (0 == timeoutChA) {
 			ledChA = LED_GREEN_SLOWBLINK;
 			requestedDirection1 = 0;
@@ -736,9 +755,18 @@ int main(void)
 			ledChA = LED_GREEN;
 		}
 
-		if (tempChB > 75)
+		if (tempChB > OVERTEMP_THRESHOLD)
+			status |= STATUS_OVERTEMP_B;
+		else if ((status & STATUS_OVERTEMP_B) && tempChB < OVERTEMP_REENABLE)
+			status &= ~(STATUS_OVERTEMP_B);
+
+
+		if (status & STATUS_OVERTEMP_B)
 		{
-			ledChB = LED_RED_FASTBLINK;
+			ledChB = LED_RED;
+			requestedDirection2 = 0;
+			requestedSpeed2 = 0;
+			updates |= _BV(UPDATE_SPEED2);
 		} else if (0 == timeoutChB) {
 			ledChB = LED_GREEN_SLOWBLINK;
 			requestedDirection2 = 0;
